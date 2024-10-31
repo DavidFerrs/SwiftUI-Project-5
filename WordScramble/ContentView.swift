@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    let people = ["Finn", "Fiona", "Jake", "Bimbo"]
+
     @State private var usedWords = [String]()
     @State private var rootWord = ""
     @State private var newWord = ""
@@ -17,29 +17,48 @@ struct ContentView: View {
     @State private var errorMessage = ""
     @State private var showingError = false
     
+    
+    var calculateScore: Int {
+        var score = 0
+        for word in usedWords {
+            score += word.count - 2
+        }
+        return score
+    }
+    
     var body: some View {
         NavigationStack{
-            List{
-                Section {
-                    TextField("Enter your new word", text: $newWord)
-                        .textInputAutocapitalization(.never)
-                }
-                
-                Section {
-                    ForEach(usedWords, id: \.self) { word in
-                        HStack {
-                            Image(systemName: "\(word.count).circle")
-                            Text(word)
+            VStack{
+                List{
+                    Section {
+                        TextField("Enter your new word", text: $newWord)
+                            .textInputAutocapitalization(.never)
+                    }
+                    
+                    Section {
+                        ForEach(usedWords, id: \.self) { word in
+                            HStack {
+                                Image(systemName: "\(word.count - 2).circle")
+                                Text(word)
+                            }
                         }
                     }
+                    
                 }
+                .navigationTitle(rootWord)
+                .toolbar(){
+                    Button("Restart", action: startGame)
+                }
+                .onSubmit(addNewWord)
+                .onAppear(perform: startGame)
+                .alert(errorTitle, isPresented: $showingError) { } message: {
+                    Text(errorMessage)
+                }
+                
+                Text("YourScore is: \(calculateScore)")
+                    .font(.largeTitle)
             }
-            .navigationTitle(rootWord)
-            .onSubmit(addNewWord)
-            .onAppear(perform: startGame)
-            .alert(errorTitle, isPresented: $showingError) { } message: {
-                Text(errorMessage)
-            }
+            
         }
     }
     
@@ -47,6 +66,16 @@ struct ContentView: View {
         let answer = newWord.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         
         guard answer.count > 0 else { return }
+        
+        guard isLongEnough(word: answer) else {
+            wordError(title: "Word is too short", message: "Be creative, use 3 letters or more!")
+            return
+        }
+        
+        guard isDiferrentFromRoot(word: answer) else {
+            wordError(title: "Word is equal to root", message: "You can't use the root word")
+            return
+        }
         
         guard isOriginal(word: answer) else {
             wordError(title: "Word used alredy", message: "Be more original!")
@@ -64,8 +93,6 @@ struct ContentView: View {
             
         }
         
-        // extra
-        
         withAnimation{
             usedWords.insert(answer, at: 0)
         }
@@ -77,11 +104,17 @@ struct ContentView: View {
             if let startWords = try? String(contentsOf: startWordsURL) {
                 let allWords = startWords.components(separatedBy: "\n")
                 rootWord = allWords.randomElement() ?? "silkworm"
+                restart()
                 return
             }
         }
         
         fatalError("Could not load start.txt from bundle.")
+    }
+    
+    func restart() {
+        usedWords = [String]()
+        newWord = ""
     }
     
     func isOriginal(word: String) -> Bool {
@@ -107,6 +140,14 @@ struct ContentView: View {
         let range = NSRange(location: 0, length: word.utf16.count)
         let misspelledRange = checker.rangeOfMisspelledWord(in: word, range: range, startingAt: 0, wrap: false, language: "en")
         return misspelledRange.location == NSNotFound
+    }
+    
+    func isDiferrentFromRoot(word: String) -> Bool {
+        word.compare(rootWord, options: .caseInsensitive) != .orderedSame
+    }
+    
+    func isLongEnough(word: String) -> Bool {
+        word.count >= 3
     }
     
     func wordError(title: String, message: String) {
